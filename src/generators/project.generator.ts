@@ -3,6 +3,29 @@ import * as fs from 'fs-extra';
 import { writeFile, ensureDir } from '../utils/file-generator';
 import { generateConfigFile } from './config.generator';
 import * as chalk from 'chalk';
+import {
+  orchestrateMultipleModules,
+  checkNestCliAvailability,
+  getNestCliVersion,
+} from './generator-orchestrator';
+import {
+  writeDTOFile,
+  createLoginDTO,
+  createRegisterDTO,
+  createRefreshTokenDTO,
+  createRoleDTO,
+  createAssignRoleDTO,
+  createTenantDTO,
+  writeAuthDTOs,
+  writeRBACDTOs,
+  writeTenantDTOs,
+} from './dto-writer';
+import {
+  generateAuthContextMD,
+  generateRBACContextMD,
+  generateTenantContextMD,
+  generateRootContextMD,
+} from './context-generator';
 
 export interface ProjectGeneratorOptions {
   projectRoot: string;
@@ -26,6 +49,16 @@ export async function generateProjectStructure(
   const srcDir = path.join(projectRoot, 'src');
   await ensureDir(srcDir);
 
+  // Check Nest CLI availability
+  console.log(chalk.cyan('🔍 Checking NestJS CLI availability...'));
+  const hasNestCli = await checkNestCliAvailability(projectRoot);
+  if (hasNestCli) {
+    const version = await getNestCliVersion(projectRoot);
+    console.log(chalk.green(`✓ Nest CLI v${version} found\n`));
+  } else {
+    console.log(chalk.yellow('⚠️  Nest CLI not found, using manual generation\n'));
+  }
+
   // Generate base modules
   await generateAuthModule(projectRoot, config, templatesDir);
   await generateDatabaseModule(projectRoot, config, templatesDir);
@@ -39,15 +72,115 @@ export async function generateProjectStructure(
     await generateTenantModule(projectRoot, config, templatesDir);
   }
 
+  // Generate DTOs with validation decorators
+  await generateDTOsWithValidation(projectRoot, config);
+
+  // Generate .context.md files
+  await generateContextFiles(projectRoot, config);
+
   // Generate configuration files
   await generateEnvTemplate(projectRoot, config);
   await generateConfigFile(projectRoot, config);
 
-  // Generate root context
-  await generateRootContext(projectRoot, config);
-
   console.log(chalk.green('✅ Project structure generated successfully!\n'));
   printGeneratedFiles(config);
+}
+
+/**
+ * Generate DTOs with validation decorators
+ * This integrates with the DTO Writer to create rich, validated DTOs
+ */
+async function generateDTOsWithValidation(
+  projectRoot: string,
+  config: any
+): Promise<void> {
+  console.log(chalk.cyan('\n📝 Generating Data Transfer Objects (DTOs)...\n'));
+
+  // Auth DTOs
+  await writeAuthDTOs(projectRoot, 'auth/dto', {
+    whitelabel: config.whitelabel,
+    rbac: config.rbac,
+    multitenant: config.multitenant,
+    database: config.database,
+  });
+  console.log(chalk.green('✓ Auth DTOs with validation decorators created'));
+
+  // RBAC DTOs
+  if (config.rbac) {
+    await writeRBACDTOs(projectRoot, 'rbac/dto', {
+      whitelabel: config.whitelabel,
+      rbac: config.rbac,
+      multitenant: config.multitenant,
+      database: config.database,
+    });
+    console.log(chalk.green('✓ RBAC DTOs with validation decorators created'));
+  }
+
+  // Tenant DTOs
+  if (config.multitenant) {
+    await writeTenantDTOs(projectRoot, 'tenant/dto', {
+      whitelabel: config.whitelabel,
+      rbac: config.rbac,
+      multitenant: config.multitenant,
+      database: config.database,
+    });
+    console.log(chalk.green('✓ Tenant DTOs with validation decorators created'));
+  }
+}
+
+/**
+ * Generate .context.md files for AI agents
+ * These provide AI-friendly documentation to prevent hallucinations
+ */
+async function generateContextFiles(
+  projectRoot: string,
+  config: any
+): Promise<void> {
+  console.log(chalk.cyan('\n📚 Generating AI Context Files (.context.md)...\n'));
+
+  // Root context
+  const rootContext = generateRootContextMD({
+    whitelabel: config.whitelabel,
+    rbac: config.rbac,
+    multitenant: config.multitenant,
+    database: config.database,
+  });
+  await writeFile(path.join(projectRoot, 'src', '.context.md'), rootContext);
+  console.log(chalk.green('✓ Root context file created: src/.context.md'));
+
+  // Auth module context
+  const authContext = generateAuthContextMD({
+    whitelabel: config.whitelabel,
+    rbac: config.rbac,
+    multitenant: config.multitenant,
+    database: config.database,
+  });
+  await writeFile(path.join(projectRoot, 'src', 'auth', '.context.md'), authContext);
+  console.log(chalk.green('✓ Auth module context created: src/auth/.context.md'));
+
+  // RBAC module context
+  if (config.rbac) {
+    const rbacContext = generateRBACContextMD({
+      whitelabel: config.whitelabel,
+      rbac: config.rbac,
+      multitenant: config.multitenant,
+      database: config.database,
+    });
+    await writeFile(path.join(projectRoot, 'src', 'rbac', '.context.md'), rbacContext);
+    console.log(chalk.green('✓ RBAC module context created: src/rbac/.context.md'));
+  }
+
+  // Tenant module context
+  if (config.multitenant) {
+    const tenantContext = generateTenantContextMD({
+      whitelabel: config.whitelabel,
+      rbac: config.rbac,
+      multitenant: config.multitenant,
+      database: config.database,
+    });
+    await writeFile(path.join(projectRoot, 'src', 'tenant', '.context.md'), tenantContext);
+    console.log(chalk.green('✓ Tenant module context created: src/tenant/.context.md'));
+  }
 }
 
 async function generateAuthModule(
@@ -65,7 +198,6 @@ async function generateAuthModule(
     { name: 'auth.controller.ts', template: 'auth/auth.controller.ts' },
     { name: 'auth.module.ts', template: 'auth/auth.module.ts' },
     { name: 'auth.service.ts', template: 'auth/auth.service.ts' },
-    { name: '.context.md', template: 'auth/.context.md' },
   ];
 
   for (const file of files) {
@@ -85,29 +217,13 @@ async function generateAuthModule(
   const strategiesDir = path.join(authDir, 'strategies');
   await ensureDir(strategiesDir);
   await writeFile(
-    path.join(strategiesDir, '.context.md'),
-    generateContextFile('Strategies', 'JWT and other authentication strategies', config)
-  );
-  await writeFile(
     path.join(strategiesDir, 'jwt.strategy.ts'),
     generateJWTStrategy(config)
   );
 
-  // Create DTOs subdirectory
-  const dtosDir = path.join(authDir, 'dtos');
+  // Create DTOs subdirectory (DTOs will be generated by generateDTOsWithValidation)
+  const dtosDir = path.join(authDir, 'dto');
   await ensureDir(dtosDir);
-  await writeFile(
-    path.join(dtosDir, '.context.md'),
-    generateContextFile('DTOs', 'Data transfer objects for authentication', config)
-  );
-  await writeFile(
-    path.join(dtosDir, 'login.dto.ts'),
-    generateLoginDTO(config)
-  );
-  await writeFile(
-    path.join(dtosDir, 'signup.dto.ts'),
-    generateSignupDTO(config)
-  );
 }
 
 async function generateDatabaseModule(
@@ -120,10 +236,6 @@ async function generateDatabaseModule(
 
   // Create database module files
   await writeFile(
-    path.join(dbDir, '.context.md'),
-    generateDatabaseContext(config)
-  );
-  await writeFile(
     path.join(dbDir, 'schema.prisma'),
     generatePrismaSchema(config)
   );
@@ -132,10 +244,6 @@ async function generateDatabaseModule(
   const entitiesDir = path.join(dbDir, 'entities');
   await ensureDir(entitiesDir);
   await writeFile(
-    path.join(entitiesDir, '.context.md'),
-    generateContextFile('Entities', 'TypeORM/Prisma entity definitions', config)
-  );
-  await writeFile(
     path.join(entitiesDir, 'user.entity.ts'),
     generateUserEntity(config)
   );
@@ -143,10 +251,6 @@ async function generateDatabaseModule(
   // Create migrations subdirectory
   const migrationsDir = path.join(dbDir, 'migrations');
   await ensureDir(migrationsDir);
-  await writeFile(
-    path.join(migrationsDir, '.context.md'),
-    generateContextFile('Migrations', 'Database migration files', config)
-  );
 }
 
 async function generateRBACModule(
@@ -157,10 +261,6 @@ async function generateRBACModule(
   const rbacDir = path.join(projectRoot, 'src', 'rbac');
   await ensureDir(rbacDir);
 
-  await writeFile(
-    path.join(rbacDir, '.context.md'),
-    generateRBACContext(config)
-  );
   await writeFile(
     path.join(rbacDir, 'rbac.guard.ts'),
     generateRBACGuard(config)
@@ -182,10 +282,6 @@ async function generateRBACModule(
   const entitiesDir = path.join(rbacDir, 'entities');
   await ensureDir(entitiesDir);
   await writeFile(
-    path.join(entitiesDir, '.context.md'),
-    generateContextFile('RBAC Entities', 'Role and Permission entities', config)
-  );
-  await writeFile(
     path.join(entitiesDir, 'role.entity.ts'),
     generateRoleEntity(config)
   );
@@ -193,6 +289,10 @@ async function generateRBACModule(
     path.join(entitiesDir, 'permission.entity.ts'),
     generatePermissionEntity(config)
   );
+
+  // Create DTOs subdirectory
+  const dtosDir = path.join(rbacDir, 'dto');
+  await ensureDir(dtosDir);
 }
 
 async function generateTenantModule(
@@ -203,10 +303,6 @@ async function generateTenantModule(
   const tenantDir = path.join(projectRoot, 'src', 'tenant');
   await ensureDir(tenantDir);
 
-  await writeFile(
-    path.join(tenantDir, '.context.md'),
-    generateTenantContext(config)
-  );
   await writeFile(
     path.join(tenantDir, 'tenant.middleware.ts'),
     generateTenantMiddleware(config)
@@ -224,13 +320,13 @@ async function generateTenantModule(
   const entitiesDir = path.join(tenantDir, 'entities');
   await ensureDir(entitiesDir);
   await writeFile(
-    path.join(entitiesDir, '.context.md'),
-    generateContextFile('Tenant Entities', 'Tenant entity definitions', config)
-  );
-  await writeFile(
     path.join(entitiesDir, 'tenant.entity.ts'),
     generateTenantEntity(config)
   );
+
+  // Create DTOs subdirectory
+  const dtosDir = path.join(tenantDir, 'dto');
+  await ensureDir(dtosDir);
 }
 
 async function generateEnvTemplate(
@@ -264,152 +360,12 @@ PORT=3001
   await writeFile(path.join(projectRoot, '.env.example'), envContent);
 }
 
-async function generateRootContext(
-  projectRoot: string,
-  config: any
-): Promise<void> {
-  const contextContent = `# Authentication Boilerplate - NestJS Backend
-
-## Project Overview
-This is an authentication boilerplate for NestJS with support for JWT-based authentication, optional RBAC, and optional multitenant architecture.
-
-## Configuration Applied
-- **Database**: ${config.database === 'supabase' ? 'Supabase PostgreSQL' : 'Google Cloud SQL PostgreSQL'}
-- **Whitelabel**: ${config.whitelabel ? 'Enabled' : 'Disabled'}
-- **RBAC**: ${config.rbac ? 'Enabled' : 'Disabled'}
-- **Multitenant**: ${config.multitenant ? 'Enabled' : 'Disabled'}
-
-## Folder Structure
-
-### Core Modules
-- **src/auth/**: Authentication logic (JWT, guards, controllers)
-  - See [auth/.context.md](./auth/.context.md) for details
-- **src/database/**: Database setup, entities, and migrations
-  - See [database/.context.md](./database/.context.md) for details
-
-${config.rbac ? '- **src/rbac/**: Role-based access control\n  - See [rbac/.context.md](./rbac/.context.md) for details\n' : ''}${config.multitenant ? '- **src/tenant/**: Multitenant support\n  - See [tenant/.context.md](./tenant/.context.md) for details\n' : ''}
-## Quick Start
-
-1. Install dependencies:
-   \`\`\`bash
-   npm install
-   \`\`\`
-
-2. Setup environment variables:
-   \`\`\`bash
-   cp .env.example .env.local
-   # Edit .env.local with your database credentials
-   \`\`\`
-
-3. Run migrations:
-   \`\`\`bash
-   npx prisma migrate dev
-   \`\`\`
-
-4. Start the development server:
-   \`\`\`bash
-   npm run dev
-   \`\`\`
-
-## API Endpoints
-
-### Authentication
-- \`POST /auth/signup\` - Register new user
-- \`POST /auth/login\` - Login user
-- \`POST /auth/refresh\` - Refresh JWT token
-- \`POST /auth/logout\` - Logout user
-
-${config.rbac ? `### RBAC
-- \`GET /rbac/roles\` - Get all roles
-- \`POST /rbac/roles\` - Create new role
-- \`GET /rbac/permissions\` - Get all permissions
-` : ''}${config.multitenant ? `### Tenant
-- \`GET /tenant\` - Get current tenant
-- \`POST /tenant\` - Create new tenant
-` : ''}
-## Key Modules
-
-Each folder has a \`.context.md\` file with detailed information about:
-- Purpose and responsibilities
-- How to extend and customize
-- Related modules and dependencies
-- Common tasks and examples
-
-## Integration with Frontend
-
-This backend works seamlessly with \`@auth-bp-next\` frontend package. Make sure both are configured with matching options:
-- Whitelabel: ${config.whitelabel}
-- RBAC: ${config.rbac}
-- Multitenant: ${config.multitenant}
-
-## Environment Variables
-
-See \`.env.example\` for all required environment variables.
-
-## Database Support
-
-${config.database === 'supabase' ? `### Supabase
-Uses Supabase PostgreSQL with Prisma ORM.
-
-Connection string format:
-\`postgresql://postgres:[password]@db.supabase.co:5432/postgres\`
-
-Prisma will handle migrations automatically.
-` : `### Google Cloud SQL
-Uses Google Cloud SQL PostgreSQL with Prisma ORM.
-
-Connection string format:
-\`postgresql://[user]:[password]@[instance-connection-name]:5432/[database]\`
-
-Make sure Cloud SQL Auth proxy is running.
-`}
-`;
-
-  await writeFile(path.join(projectRoot, 'src', '.context.md'), contextContent);
-}
-
 function generateDefaultContent(
   fileName: string,
   moduleName: string,
   config: any
 ): string {
-  if (fileName === '.context.md') {
-    return generateContextFile(
-      moduleName.charAt(0).toUpperCase() + moduleName.slice(1),
-      `${moduleName} module context`,
-      config
-    );
-  }
   return `// ${moduleName}/${fileName}\n// Auto-generated by auth-bp-nest`;
-}
-
-function generateContextFile(
-  title: string,
-  description: string,
-  config: any
-): string {
-  return `# ${title}
-
-## Purpose
-${description}
-
-## Configuration Applied
-- Whitelabel: ${config.whitelabel}
-- RBAC: ${config.rbac}
-- Multitenant: ${config.multitenant}
-
-## Files in This Module
-<!-- List your files here -->
-
-## Key Concepts
-<!-- Explain key concepts -->
-
-## Integration Points
-<!-- Describe how this module integrates with others -->
-
-## Common Tasks
-<!-- List common modification tasks -->
-`;
 }
 
 function generateJWTStrategy(config: any): string {
@@ -439,24 +395,6 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
 `;
 }
 
-function generateLoginDTO(config: any): string {
-  return `export class LoginDto {
-  email: string;
-  password: string;
-}
-`;
-}
-
-function generateSignupDTO(config: any): string {
-  return `export class SignupDto {
-  email: string;
-  password: string;
-  firstName: string;
-  lastName: string;
-}
-`;
-}
-
 function generateUserEntity(config: any): string {
   return `import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn } from 'typeorm';
 
@@ -477,7 +415,7 @@ export class User {
   @Column({ nullable: true })
   lastName: string;
 
-  ${config.multitenant ? '@Column({ nullable: true, type: \'uuid\' })\n  tenantId: string;' : ''}
+  ${config.multitenant ? "@Column({ nullable: true, type: 'uuid' })\n  tenantId: string;" : ''}
 
   @CreateDateColumn()
   createdAt: Date;
@@ -502,7 +440,7 @@ export class Role {
   @Column({ nullable: true })
   description: string;
 
-  ${config.multitenant ? '@Column({ nullable: true, type: \'uuid\' })\n  tenantId: string;' : ''}
+  ${config.multitenant ? "@Column({ nullable: true, type: 'uuid' })\n  tenantId: string;" : ''}
 }
 `;
 }
@@ -620,14 +558,6 @@ export const Permissions = (...permissions: string[]) => SetMetadata('permission
 `;
 }
 
-function generateRBACContext(config: any): string {
-  return generateContextFile(
-    'RBAC Module',
-    'Role-Based Access Control implementation for fine-grained access management',
-    config
-  );
-}
-
 function generateTenantMiddleware(config: any): string {
   return `import { Injectable, NestMiddleware } from '@nestjs/common';
 import { Request, Response, NextFunction } from 'express';
@@ -680,64 +610,6 @@ export const TenantId = createParamDecorator(
 `;
 }
 
-function generateTenantContext(config: any): string {
-  return generateContextFile(
-    'Tenant Module',
-    'Multitenant support with isolated data access and tenant management',
-    config
-  );
-}
-
-function generateDatabaseContext(config: any): string {
-  return `# Database Module Context
-
-## Purpose
-PostgreSQL database connection, migrations, and ORM setup using Prisma.
-
-## Database Support
-${config.database === 'supabase' ? `### Supabase PostgreSQL
-Optimized for Supabase with automatic connection pooling.
-
-Connection format: \`postgresql://postgres:[password]@db.supabase.co:5432/postgres\`
-` : `### Google Cloud SQL PostgreSQL
-Configured for Google Cloud SQL with Cloud SQL Auth proxy support.
-
-Connection format: \`postgresql://[user]:[password]@cloudsql-instance:5432/database\`
-`}
-
-## Schema Overview
-
-### Core Tables
-- \`users\`: User accounts and credentials
-- \`sessions\`: Active sessions with refresh tokens
-
-${config.rbac ? `### RBAC Tables
-- \`roles\`: Role definitions
-- \`permissions\`: Permission definitions
-- \`user_roles\`: User-role assignments
-- \`role_permissions\`: Role-permission assignments
-` : ''}${config.multitenant ? `### Multitenant Tables
-- \`tenants\`: Tenant definitions
-- \`tenant_users\`: Tenant-user associations
-${config.rbac ? '- \`tenant_roles\`: Tenant-scoped roles' : ''}
-` : ''}
-## Running Migrations
-
-\`\`\`bash
-npx prisma migrate dev --name <migration_name>
-npx prisma db push  # Sync schema without migration
-\`\`\`
-
-## Seeding Database
-
-Create a \`prisma/seed.ts\` file for initial data.
-
-## Related Modules
-- Auth Module (\`../auth/.context.md\`)
-- RBAC Module (\`../rbac/.context.md\` if enabled)
-`;
-}
-
 function generatePrismaSchema(config: any): string {
   return `// This is your Prisma schema file,
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
@@ -777,7 +649,9 @@ model Session {
   @@map("sessions")
 }
 
-${config.rbac ? `model Role {
+${
+  config.rbac
+    ? `model Role {
   id          String   @id @default(cuid())
   name        String
   description String?
@@ -819,7 +693,11 @@ model RolePermission {
   @@id([roleId, permissionId])
   @@map("role_permissions")
 }
-` : ''}${config.multitenant ? `model Tenant {
+`
+    : ''
+}${
+  config.multitenant
+    ? `model Tenant {
   id          String   @id @default(cuid())
   name        String
   slug        String   @unique
@@ -831,26 +709,33 @@ model RolePermission {
 
   @@map("tenants")
 }
-` : ''}
+`
+    : ''
+}
 `;
 }
 
 function printGeneratedFiles(config: any): void {
   console.log(chalk.blue('📁 Generated files:\n'));
   console.log(chalk.green('  ✓ src/auth/'));
+  console.log(chalk.green('  ✓ src/auth/dto/ (with validation decorators)'));
+  console.log(chalk.green('  ✓ src/auth/.context.md (AI-friendly documentation)'));
   console.log(chalk.green('  ✓ src/database/'));
   if (config.rbac) {
     console.log(chalk.green('  ✓ src/rbac/'));
+    console.log(chalk.green('  ✓ src/rbac/dto/ (with validation decorators)'));
+    console.log(chalk.green('  ✓ src/rbac/.context.md (AI-friendly documentation)'));
   }
   if (config.multitenant) {
     console.log(chalk.green('  ✓ src/tenant/'));
+    console.log(chalk.green('  ✓ src/tenant/dto/ (with validation decorators)'));
+    console.log(chalk.green('  ✓ src/tenant/.context.md (AI-friendly documentation)'));
   }
   console.log(chalk.green('  ✓ .env.example'));
   console.log(chalk.green('  ✓ .auth-bp-config.json'));
   console.log(chalk.blue('\n📚 Next steps:'));
-  console.log('  1. Review .env.example and create .env.local');
+  console.log('  1. Review .context.md files and .env.example');
   console.log('  2. Install dependencies: npm install');
   console.log('  3. Setup database: npx prisma migrate dev');
-  console.log('  4. Check .context.md files in each folder');
-  console.log('  5. Start development: npm run dev\n');
+  console.log('  4. Start development: npm run dev\n');
 }

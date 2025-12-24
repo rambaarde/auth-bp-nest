@@ -15,6 +15,7 @@ NestJS Authentication Boilerplate with support for whitelabeling, RBAC, and mult
 ## Features
 
 ✅ **JWT Authentication** - Secure token-based authentication  
+✅ **Validated DTOs** - Full class-validator decorators on all request objects  
 ✅ **Optional RBAC** - Role-Based Access Control with permissions  
 ✅ **Optional Multitenant** - Multi-tenant support with data isolation  
 ✅ **Whitelabeling** - Support for custom branding and domains  
@@ -25,60 +26,103 @@ NestJS Authentication Boilerplate with support for whitelabeling, RBAC, and mult
 ## Installation
 
 ```bash
+# 1. Create a new NestJS project
+nest new my-app
+cd my-app
+
+# 2. Install auth-bp-nest
 npm install auth-bp-nest
+
+# 3. Initialize authentication scaffolding
 npx auth-bp-nest init
 ```
 
+The CLI will prompt you for configuration, then scaffold a complete authentication system into your project.
+
 ## Quick Start
 
-After running `init`, you'll be prompted with configuration options:
+Run the initialization command in your existing NestJS project:
+
+```bash
+npx auth-bp-nest init
+```
+
+You'll be prompted with configuration options:
 
 ```
-? Which database are you using? (Supabase / Google Cloud SQL)
+? Which database are you using?
+  > Supabase PostgreSQL
+    Google Cloud SQL PostgreSQL
+
 ? Enable Whitelabeling? (Yes / No)
-? Enable RBAC? (Yes / No)
+? Enable RBAC (Role-Based Access Control)? (Yes / No)
 ? Enable Multitenant support? (Yes / No)
 ```
 
-This generates a complete NestJS authentication module with:
-- JWT authentication service
-- Auth guards and strategies
-- Database models and migrations
-- Configuration files (if selected)
-- `.context.md` files for guidance
+Based on your selections, the CLI generates:
+- **Auth Module** - JWT authentication with guards and strategies
+- **DTOs** - Fully validated data transfer objects with class-validator decorators
+- **Database Models** - Prisma schema with entities and migrations
+- **RBAC Module** (optional) - Role-based access control system
+- **Tenant Module** (optional) - Multitenant support with data isolation
+- **.context.md Files** - AI-friendly documentation for Copilot/Cursor
 
-## Project Structure
+## How It Works
 
-```
-src/
-├── auth/                 # Authentication logic
-│   ├── jwt.service.ts   # JWT creation & validation
-│   ├── auth.guard.ts    # NestJS guards
-│   ├── auth.controller.ts
-│   ├── strategies/      # Passport strategies
-│   └── dtos/           # Data transfer objects
-├── database/           # Database setup
-│   ├── schema.prisma   # Prisma schema
-│   ├── entities/       # Entity definitions
-│   └── migrations/     # Migration files
-├── rbac/              # (Optional) Role-based access control
-│   ├── rbac.service.ts
-│   ├── rbac.guard.ts
-│   └── entities/
-├── tenant/            # (Optional) Multitenant support
-│   ├── tenant.service.ts
-│   ├── tenant.middleware.ts
-│   └── entities/
-└── .context.md        # Root context for AI assistance
+### Three Core Generators
+
+The CLI uses three specialized TypeScript generators that work together:
+
+#### 1. **Generator Orchestrator** - NestJS Structure
+Spawns `nest g` commands to scaffold modules, controllers, services, and DTOs in your project.
+
+```bash
+nest g module auth
+nest g controller auth
+nest g service auth
+nest g class auth/dto/login.dto --no-spec
 ```
 
-## Configuration
+#### 2. **DTO Writer** - Validation & Decorators
+Fills generated DTOs with `class-validator` decorators and configuration-aware properties.
 
-Each folder has a `.context.md` file explaining:
-- Purpose and responsibilities
-- How to extend and customize
-- Related modules and dependencies
-- Common tasks and examples
+```typescript
+// Generated with full validation:
+export class LoginDto {
+  @IsEmail()
+  @IsDefined()
+  email: string;
+
+  @IsString()
+  @MinLength(8)
+  @IsDefined()
+  password: string;
+
+  // Added if multitenant enabled:
+  @IsUUID()
+  @IsOptional()
+  tenantId?: string;
+}
+```
+
+#### 3. **Context Generator** - AI Documentation
+Creates `.context.md` files in each module with explicit validation rules, architecture patterns, and integration points for AI assistants.
+
+```markdown
+# Auth Module Context
+
+## DTOs
+
+### LoginDto
+- email: RFC 5322 email format [IsEmail, IsDefined]
+- password: min 8 chars [IsString, MinLength(8), IsDefined]
+- tenantId: optional UUID [IsUUID, IsOptional]
+
+## Validation Rules
+- Email must be unique in database
+- Password must include: uppercase, lowercase, numbers, symbols
+...
+```
 
 ## Database Setup
 
