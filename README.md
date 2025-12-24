@@ -2,6 +2,16 @@
 
 NestJS Authentication Boilerplate with support for whitelabeling, RBAC, and multitenant architectures.
 
+<div align="center">
+
+[![npm version](https://img.shields.io/npm/v/auth-bp-nest?style=flat-square&color=blue)](https://www.npmjs.com/package/auth-bp-nest)
+[![npm downloads](https://img.shields.io/npm/dm/auth-bp-nest?style=flat-square&color=brightgreen)](https://www.npmjs.com/package/auth-bp-nest)
+[![license](https://img.shields.io/npm/l/auth-bp-nest?style=flat-square)](https://github.com/rambaarde/auth-bp-nest/blob/main/LICENSE)
+
+[📦 View on npm](https://www.npmjs.com/package/auth-bp-nest)
+
+</div>
+
 ## Features
 
 ✅ **JWT Authentication** - Secure token-based authentication  

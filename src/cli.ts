@@ -2,7 +2,7 @@
 
 import * as path from 'path';
 import * as chalk from 'chalk';
-import * as ora from 'ora';
+import ora from 'ora';
 import { promptConfig } from './prompts';
 import { generateProjectStructure } from './generators/project.generator';
 
