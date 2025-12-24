@@ -1,6 +1,6 @@
 {
   "name": "auth-bp-nest",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "NestJS Authentication Boilerplate - Whitelabel & Non-Whitelabel ready with RBAC and Multitenant support",
   "main": "dist/cli.js",
   "types": "dist/cli.d.ts",
@@ -21,7 +21,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/yourusername/auth-bp-nest.git"
+    "url": "git+https://github.com/rambaarde/auth-bp-nest.git"
   },
   "keywords": [
     "nestjs",
@@ -35,12 +35,12 @@
     "paas",
     "cli"
   ],
-  "author": "Auth BP",
+  "author": "Ram <ramchrist20@gmail.com>",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/yourusername/auth-bp-nest/issues"
+    "url": "https://github.com/rambaarde/auth-bp-nest/issues"
   },
-  "homepage": "https://github.com/yourusername/auth-bp-nest#readme",
+  "homepage": "https://github.com/rambaarde/auth-bp-nest#readme",
   "dependencies": {
     "chalk": "^4.1.2",
     "fs-extra": "^11.1.1",
