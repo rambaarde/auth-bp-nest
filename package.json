@@ -1,0 +1,59 @@
+{
+  "name": "auth-bp-nest",
+  "version": "1.0.0",
+  "description": "NestJS Authentication Boilerplate - Whitelabel & Non-Whitelabel ready with RBAC and Multitenant support",
+  "main": "dist/cli.js",
+  "types": "dist/cli.d.ts",
+  "bin": {
+    "auth-bp-nest": "bin/init.js"
+  },
+  "files": [
+    "bin",
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "dev": "ts-node src/cli.ts",
+    "test": "jest",
+    "prepublishOnly": "npm run build"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yourusername/auth-bp-nest.git"
+  },
+  "keywords": [
+    "nestjs",
+    "authentication",
+    "boilerplate",
+    "jwt",
+    "rbac",
+    "multitenant",
+    "whitelabel",
+    "saas",
+    "paas",
+    "cli"
+  ],
+  "author": "Auth BP",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/yourusername/auth-bp-nest/issues"
+  },
+  "homepage": "https://github.com/yourusername/auth-bp-nest#readme",
+  "dependencies": {
+    "inquirer": "^8.2.5",
+    "chalk": "^4.1.2",
+    "ora": "^5.4.1",
+    "fs-extra": "^11.1.1"
+  },
+  "devDependencies": {
+    "typescript": "^5.0.0",
+    "@types/node": "^20.0.0",
+    "@types/fs-extra": "^11.0.1",
+    "ts-node": "^10.9.1"
+  },
+  "engines": {
+    "node": ">=16.0.0"
+  }
+}
