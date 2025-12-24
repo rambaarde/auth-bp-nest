@@ -1,6 +1,6 @@
 {
   "name": "auth-bp-nest",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "NestJS Authentication Boilerplate - Whitelabel & Non-Whitelabel ready with RBAC and Multitenant support",
   "main": "dist/cli.js",
   "types": "dist/cli.d.ts",
